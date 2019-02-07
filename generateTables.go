@@ -63,17 +63,6 @@ func main() {
 	hexData := hex.EncodeToString([]byte(snippetXML))
 	hexData = "XMTB" + hexData
 	hexData = "«data " + hexData + "»"
-	/*
-		Mac-XMTB = table
-		Mac-XMFD = field
-		Mac-XMSC = script
-		Mac-XMSS = script step
-		Mac-XMFN = custom function
-		Mac-XMLO = layout object (.fp7)
-		Mac-XML2 = layout object (.fmp12)
-		Mac-XMVL = value list (FM16)
-		Mac-     = Theme
-	*/
 
 	err = exec.Command("osascript", "-e", fmt.Sprintf("set the clipboard to %s", hexData)).Run()
 	if err != nil {
