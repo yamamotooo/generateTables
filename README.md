@@ -8,3 +8,6 @@ Modify Excel file.
 Run generateTables > genearate table object to clipboad.
 Open FileMaker's Manage Database > Table tab.
 Paset it.
+
+Require
+github.com/atotto/clipboard
