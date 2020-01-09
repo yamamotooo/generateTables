@@ -19,6 +19,7 @@ var (
 	snippetXML	= `<fmxmlsnippet type="FMObjectList">%s</fmxmlsnippet>`
 	tableXML	= `<BaseTable name="%s">%s</BaseTable>`
 	fieldXML	= `<Field id="%s" dataType="%s" fieldType="%s" name="%s">
+					<Calculation table="%s"><![CDATA[%s]]></Calculation>
 					<Comment>%s
 					</Comment>
 					<AutoEnter allowEditing="%s" constant="%s" furigana="%s" lookup="%s" calculation="%s">
