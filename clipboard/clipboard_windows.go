@@ -128,8 +128,8 @@ func writeAll(text string) error {
 	//https://wa3.i-3-i.info/word11428.html
 	//https://kotaeta.com/54051254
 	x := len(text)
-    y := [4]byte{}
-    binary.LittleEndian.PutUint32(y[:], uint32(x))
+	y := [4]byte{}
+	binary.LittleEndian.PutUint32(y[:], uint32(x))
 
 	//2 null bytes in a row, basically
 	//https://superuser.com/questions/946533/is-there-any-way-to-copy-null-bytes-ascii-0x00-to-the-clipboard-on-windows
