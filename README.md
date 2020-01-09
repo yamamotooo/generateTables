@@ -1,7 +1,8 @@
 # generateTables
 Generate filemaker's table object from Excel file to clipboard.
 
-* macOS ONLY
+* OS X Yosemite v10.10 or later (tested on macOS Mojave 10.14)
+* Windows 7 or later (tested on Windows 10)
 
 Modify Excel file.
 Run generateTables > genearate table object to clipboad.
