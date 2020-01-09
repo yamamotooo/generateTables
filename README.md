@@ -5,9 +5,9 @@ Generate filemaker's table object from Excel file to clipboard.
 * Windows 7 or later (tested on Windows 10)
 
 Modify Excel file.
-Run generateTables > genearate table object to clipboad.
-Open FileMaker's Manage Database > Table tab.
-Paset it.
+Run generateTables > genearate table object to clipboad.  
+Open FileMaker's Manage Database > Table tab.  
+Paset it.  
 
 Require
 github.com/atotto/clipboard
