@@ -1,0 +1,21 @@
+<fmxmlsnippet type="FMObjectList">
+	<BaseTable name="K3">
+		<Field id="A10" dataType="L10" fieldType="I10" name="D10">
+			<Calculation table=""><![CDATA[]]></Calculation>
+			<Comment>AS10</Comment>
+			<AutoEnter allowEditing="" overwriteExistingValue="" alwaysEvaluate="" constant="AG10" furigana="" lookup="" calculation="">
+				<ConstantData>AJ10</ConstantData>
+				<Calculation table=""><![CDATA[]]></Calculation>
+			</AutoEnter>
+			<Validation message="" maxLength="X10" valuelist="" calculation="" alwaysValidateCalculation="" type="">
+				<NotEmpty value="U10"></NotEmpty>
+				<Unique value="R10"></Unique>
+				<Existing value="AA10"></Existing>
+				<MaxDataLength value="X10"></MaxDataLength>
+				<StrictDataType value="O10"></StrictDataType>
+				<StrictValidation value="AA10"></StrictValidation>
+			</Validation>
+			<Storage autoIndex="" index="" indexLanguage="" global="AM10" maxRepetition="AP10"></Storage>
+		</Field>
+	</BaseTable>
+</fmxmlsnippet>
