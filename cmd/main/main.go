@@ -229,32 +229,34 @@ func main() {
 					},
 				}
 				// --------------------------------------------------
-				if returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Constant, "固定値") == "固定値" {
+				var constantDataElement *xmlquery.Node
+				if returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Constant, "") == "固定値" {
 					autoEnterElement.SetAttr("constant", "True")
-					constantDataElement := &xmlquery.Node{
+					constantDataElement = &xmlquery.Node{
 						Data: "ConstantData",
 						Type: xmlquery.ElementNode,
 					}
-					xmlquery.AddChild(constantDataElement, &xmlquery.Node{
-						Data: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.ConstantData, ""),
-						Type: xmlquery.TextNode,
-					})
-					xmlquery.AddChild(autoEnterElement, constantDataElement)
-				} else {
+				} else if returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Constant, "") == "計算値" {
 					autoEnterElement.SetAttr("calculation", "True")
-					calculationDataElement := &xmlquery.Node{
+					constantDataElement = &xmlquery.Node{
 						Data: "Calculation",
 						Type: xmlquery.ElementNode,
 						Attr: []xmlquery.Attr{
 							{Name: xml.Name{Local: "table"}, Value: ""},
 						},
 					}
-					xmlquery.AddChild(calculationDataElement, &xmlquery.Node{
-						Data: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.ConstantData, ""),
-						Type: xmlquery.CharDataNode,
-					})
-					xmlquery.AddChild(autoEnterElement, calculationDataElement)
+				} else {
+					autoEnterElement.SetAttr("constant", "False")
+					constantDataElement = &xmlquery.Node{
+						Data: "ConstantData",
+						Type: xmlquery.ElementNode,
+					}
 				}
+				xmlquery.AddChild(constantDataElement, &xmlquery.Node{
+					Data: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.ConstantData, ""),
+					Type: xmlquery.TextNode,
+				})
+				xmlquery.AddChild(autoEnterElement, constantDataElement)
 				xmlquery.AddChild(fieldElement, autoEnterElement)
 				// --------------------------------------------------
 				validationElement := &xmlquery.Node{
