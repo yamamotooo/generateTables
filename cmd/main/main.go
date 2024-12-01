@@ -96,15 +96,15 @@ func returnCellValue(sheetName string, rowAxis int, cellName string, defaultValu
 		cellValue = defaultValue
 	}
 	// --------------------------------------------------
-	cellValue = strings.Replace(cellValue, "通常", "Normal", -1)
-	cellValue = strings.Replace(cellValue, "計算", "Calculated", -1)
-	cellValue = strings.Replace(cellValue, "集計", "Summary", -1)
-	cellValue = strings.Replace(cellValue, "テキスト", "Text", -1)
-	cellValue = strings.Replace(cellValue, "数字", "Number", -1)
-	cellValue = strings.Replace(cellValue, "日付", "Date", -1)
-	cellValue = strings.Replace(cellValue, "時刻", "Time", -1)
-	cellValue = strings.Replace(cellValue, "タイムスタンプ", "TimeStamp", -1)
-	cellValue = strings.Replace(cellValue, "オブジェクト", "Binary", -1)
+	cellValue = strings.Replace(cellValue, "通常タイプ", "Normal", -1)
+	cellValue = strings.Replace(cellValue, "計算タイプ", "Calculated", -1)
+	cellValue = strings.Replace(cellValue, "集計タイプ", "Summary", -1)
+	cellValue = strings.Replace(cellValue, "テキスト型", "Text", -1)
+	cellValue = strings.Replace(cellValue, "数字型", "Number", -1)
+	cellValue = strings.Replace(cellValue, "日付型", "Date", -1)
+	cellValue = strings.Replace(cellValue, "時刻型", "Time", -1)
+	cellValue = strings.Replace(cellValue, "タイムスタンプ型", "TimeStamp", -1)
+	cellValue = strings.Replace(cellValue, "オブジェクト型", "Binary", -1)
 	cellValue = strings.Replace(cellValue, "数字のみ", "Numeric", -1)
 	cellValue = strings.Replace(cellValue, "日付のみ", "FourDigitYear", -1)
 	cellValue = strings.Replace(cellValue, "時刻のみ", "TimeOfDay", -1)
@@ -203,6 +203,7 @@ func main() {
 						{Name: xml.Name{Local: "dataType"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.DataType, "Text")},
 					},
 				}
+
 				// --------------------------------------------------
 				commentElement := &xmlquery.Node{
 					Data: "Comment",
@@ -213,6 +214,7 @@ func main() {
 					Type: xmlquery.TextNode,
 				})
 				xmlquery.AddChild(fieldElement, commentElement)
+
 				// --------------------------------------------------
 				autoEnterElement := &xmlquery.Node{
 					Data: "AutoEnter",
@@ -223,20 +225,28 @@ func main() {
 						{Name: xml.Name{Local: "calculation"}, Value: "False"},
 						{Name: xml.Name{Local: "alwaysEvaluate"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.AlwaysEvaluate, "False")},
 						{Name: xml.Name{Local: "overwriteExistingValue"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.OverwriteExistingValue, "True")},
-						{Name: xml.Name{Local: "allowEditing"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.AllowEditing, "True")},
+						{Name: xml.Name{Local: "allowEditing"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.AllowEditing, "False")},
 						{Name: xml.Name{Local: "furigana"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Furigana, "False")},
 						{Name: xml.Name{Local: "lookup"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Lookup, "False")},
 					},
 				}
-				// --------------------------------------------------
-				var constantDataElement *xmlquery.Node
-				if returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Constant, "") == "固定値" {
+
+				var constantDataElement = &xmlquery.Node{
+					Data: "ConstantData",
+					Type: xmlquery.ElementNode,
+				}
+				autoEnterConstant := returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Constant, "")
+				if autoEnterConstant == "固定値" {
 					autoEnterElement.SetAttr("constant", "True")
-					constantDataElement = &xmlquery.Node{
-						Data: "ConstantData",
-						Type: xmlquery.ElementNode,
-					}
-				} else if returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Constant, "") == "計算値" {
+				} else if autoEnterConstant == "作成TS" {
+					autoEnterElement.SetAttr("value", "CreationTimeStamp")
+				} else if autoEnterConstant == "作成者" {
+					autoEnterElement.SetAttr("value", "CreationAccountName")
+				} else if autoEnterConstant == "修正TS" {
+					autoEnterElement.SetAttr("value", "ModificationTimeStamp")
+				} else if autoEnterConstant == "修正者" {
+					autoEnterElement.SetAttr("value", "ModificationAccountName")
+				} else if autoEnterConstant == "計算値" {
 					autoEnterElement.SetAttr("calculation", "True")
 					constantDataElement = &xmlquery.Node{
 						Data: "Calculation",
@@ -245,12 +255,6 @@ func main() {
 							{Name: xml.Name{Local: "table"}, Value: ""},
 						},
 					}
-				} else {
-					autoEnterElement.SetAttr("constant", "False")
-					constantDataElement = &xmlquery.Node{
-						Data: "ConstantData",
-						Type: xmlquery.ElementNode,
-					}
 				}
 				xmlquery.AddChild(constantDataElement, &xmlquery.Node{
 					Data: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.ConstantData, ""),
@@ -258,6 +262,7 @@ func main() {
 				})
 				xmlquery.AddChild(autoEnterElement, constantDataElement)
 				xmlquery.AddChild(fieldElement, autoEnterElement)
+
 				// --------------------------------------------------
 				validationElement := &xmlquery.Node{
 					Data: "Validation",
@@ -272,6 +277,7 @@ func main() {
 						{Name: xml.Name{Local: "type"}, Value: returnCellValue(sheetName, rowIndex, "", "OnlyDuringDataEntry")},
 					},
 				}
+
 				/* True, False */
 				uniqueElement := &xmlquery.Node{
 					Data: "Unique",
@@ -281,6 +287,31 @@ func main() {
 					},
 				}
 				xmlquery.AddChild(validationElement, uniqueElement)
+
+				/* True, False */
+				strictValidationElement := &xmlquery.Node{
+					Data: "StrictValidation",
+					Type: xmlquery.ElementNode,
+					Attr: []xmlquery.Attr{
+						{Name: xml.Name{Local: "value"}, Value: "False"},
+					},
+				}
+
+				strictDataTypeValue := returnCellValue(sheetName, rowIndex, fieldXML.Validation.StrictDataType.Value, "")
+				if strictDataTypeValue != "" {
+					strictValidationElement.SetAttr("value", "True")
+					strictDataTypeElement := &xmlquery.Node{
+						Data: "StrictDataType",
+						Type: xmlquery.ElementNode,
+						Attr: []xmlquery.Attr{
+							{Name: xml.Name{Local: "value"}, Value: strictDataTypeValue},
+						},
+					}
+					xmlquery.AddChild(validationElement, strictDataTypeElement)
+				}
+				xmlquery.AddChild(validationElement, strictValidationElement)
+				log.Println(validationElement.OutputXML(true))
+
 				/* True, False */
 				notEmptyElement := &xmlquery.Node{
 					Data: "NotEmpty",
@@ -290,6 +321,7 @@ func main() {
 					},
 				}
 				xmlquery.AddChild(validationElement, notEmptyElement)
+
 				/* 0 - 999 */
 				maxLengthElement := &xmlquery.Node{
 					Data: "MaxDataLength",
@@ -303,6 +335,7 @@ func main() {
 				}
 				xmlquery.AddChild(validationElement, maxLengthElement)
 				xmlquery.AddChild(fieldElement, validationElement)
+
 				// --------------------------------------------------
 				storageEnterElement := &xmlquery.Node{
 					Data: "Storage",
