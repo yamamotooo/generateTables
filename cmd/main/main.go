@@ -191,7 +191,6 @@ func main() {
 		// 各行の末尾にある継続的な空白のセルはスキップされるため、各行の長さが不一致になる可能性がある、シートからセルの値を直接取得する
 		for rowIndex, row := range rows {
 			if rowIndex >= (rowAxis-1) && len(row) > 1 {
-				fmt.Println(rowIndex, row)
 				// --------------------------------------------------
 				fieldElement := &xmlquery.Node{
 					Data: "Field",
@@ -310,7 +309,6 @@ func main() {
 					xmlquery.AddChild(validationElement, strictDataTypeElement)
 				}
 				xmlquery.AddChild(validationElement, strictValidationElement)
-				log.Println(validationElement.OutputXML(true))
 
 				/* True, False */
 				notEmptyElement := &xmlquery.Node{
