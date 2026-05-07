@@ -1,5 +1,6 @@
 # macOS
 .DS_Store
+~$*
 .AppleDouble
 .LSOverride
 
@@ -13,9 +14,12 @@
 # Build output
 build/generateTables
 build/generateTables.exe
+build/generateTables_darwin_*
 build/debug.log
+build/output.xml
 build/*.app/
 build/*.app
+cmd/main/generateTables
 
 # Go test binaries
 *.test

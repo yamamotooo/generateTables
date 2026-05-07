@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/xml"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -18,8 +20,19 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-var (
-	xlsxFile *excelize.File
+var cellValueReplacer = strings.NewReplacer(
+	"通常タイプ", "Normal",
+	"計算タイプ", "Calculated",
+	"集計タイプ", "Summary",
+	"テキスト型", "Text",
+	"数字型", "Number",
+	"日付型", "Date",
+	"時刻型", "Time",
+	"タイムスタンプ型", "TimeStamp",
+	"オブジェクト型", "Binary",
+	"数字のみ", "Numeric",
+	"日付のみ", "FourDigitYear",
+	"時刻のみ", "TimeOfDay",
 )
 
 type fmxmlSnippet struct {
@@ -34,6 +47,7 @@ type fmxmlSnippet struct {
 			Name        string `xml:"name,attr"`
 			Calculation struct {
 				XMLName xml.Name `xml:"Calculation"`
+				Table   string   `xml:"table,attr"`
 				Value   string   `xml:",cdata"`
 			}
 			Comment   string `xml:"Comment"`
@@ -84,74 +98,90 @@ type fmxmlSnippet struct {
 	} `xml:"BaseTable"`
 }
 
-func returnCellValue(sheetName string, rowAxis int, cellName string, defaultValue string) string {
+func prettyXML(src string) string {
+	var buf bytes.Buffer
+	buf.WriteString(xml.Header)
+	enc := xml.NewEncoder(&buf)
+	enc.Indent("", "\t")
+	dec := xml.NewDecoder(strings.NewReader(src))
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return src
+		}
+		if err = enc.EncodeToken(tok); err != nil {
+			return src
+		}
+	}
+	if err := enc.Flush(); err != nil {
+		return src
+	}
+	return buf.String()
+}
+
+func returnCellValue(f *excelize.File, sheetName string, rowAxis int, cellName string, defaultValue string) string {
 	var cellValue string
-	if len(cellName) > 0 {
+	if cellName != "" {
 		colAxis, _, _ := excelize.CellNameToCoordinates(cellName)
 		cellLabel, _ := excelize.CoordinatesToCellName(colAxis, rowAxis+1)
-		cellValue, _ = xlsxFile.GetCellValue(sheetName, cellLabel)
-		//cellValue = row[colAxis-1]
+		cellValue, _ = f.GetCellValue(sheetName, cellLabel)
 	}
-	if len(cellValue) == 0 {
+	if cellValue == "" {
 		cellValue = defaultValue
 	}
-	// --------------------------------------------------
-	cellValue = strings.Replace(cellValue, "通常タイプ", "Normal", -1)
-	cellValue = strings.Replace(cellValue, "計算タイプ", "Calculated", -1)
-	cellValue = strings.Replace(cellValue, "集計タイプ", "Summary", -1)
-	cellValue = strings.Replace(cellValue, "テキスト型", "Text", -1)
-	cellValue = strings.Replace(cellValue, "数字型", "Number", -1)
-	cellValue = strings.Replace(cellValue, "日付型", "Date", -1)
-	cellValue = strings.Replace(cellValue, "時刻型", "Time", -1)
-	cellValue = strings.Replace(cellValue, "タイムスタンプ型", "TimeStamp", -1)
-	cellValue = strings.Replace(cellValue, "オブジェクト型", "Binary", -1)
-	cellValue = strings.Replace(cellValue, "数字のみ", "Numeric", -1)
-	cellValue = strings.Replace(cellValue, "日付のみ", "FourDigitYear", -1)
-	cellValue = strings.Replace(cellValue, "時刻のみ", "TimeOfDay", -1)
-	return cellValue
+	return cellValueReplacer.Replace(cellValue)
 }
 
 func main() {
-	// fmlXMLSnippet を定義
 	var rec fmxmlSnippet
 
-	// 実行ファイルのパスを取得
+	debug := flag.Bool("debug", false, "write debug.log and output.xml")
+	flag.Parse()
+
 	exe, err := os.Executable()
 	if err != nil {
 		log.Fatal(err)
 	}
 	dir := filepath.Dir(exe)
 
-	//ログファイルを作成
-	file, err := os.OpenFile(dir+"/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if *debug {
+		logFile, err := os.OpenFile(filepath.Join(dir, "debug.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer logFile.Close()
+		log.SetOutput(logFile)
+	} else {
+		log.SetOutput(io.Discard)
+	}
+
+	r, err := os.Open(filepath.Join(dir, "config.xml"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer file.Close()
-	log.SetOutput(file)
-
-	// config ファイルの読み込み
-	r, err := os.Open(dir + "/config.xml")
-	if err != nil {
-		log.Println(err)
-	}
 	defer r.Close()
 
-	// https: //zenn.dev/nnabeyang/scraps/a1429f7f1214e9
-	dec := xml.NewDecoder(r)
-	err = dec.Decode(&rec)
-	if err != nil {
-		log.Println(err)
+	if err = xml.NewDecoder(r).Decode(&rec); err != nil {
+		log.Fatal(err)
 	}
-
-	// xlsx の読み込み
-	flag.Parse()
-	xlsxFile, err = excelize.OpenFile(flag.Arg(0))
+	xlsxFile, err := excelize.OpenFile(flag.Arg(0))
 	if err != nil {
-		log.Println(err)
+		log.Fatal(err)
 	}
 	defer xlsxFile.Close()
-	// root エレメントの作成
+
+	_, rowAxis, err := excelize.SplitCellName(rec.BaseTable.Field.ID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cell := func(sheetName string, rowIndex int, cellName, defaultValue string) string {
+		return returnCellValue(xlsxFile, sheetName, rowIndex, cellName, defaultValue)
+	}
+
 	rootElement := &xmlquery.Node{
 		Data: "fmxmlsnippet",
 		Type: xmlquery.ElementNode,
@@ -161,23 +191,19 @@ func main() {
 	}
 
 	for index, sheetName := range xlsxFile.GetSheetMap() {
-		// シート名が #SAMPLE の場合は処理をスキップ
 		fmt.Println(index, sheetName)
 		if sheetName == "#SAMPLE" {
 			continue
 		}
-		// シート内容が空の場合は処理をスキップ
-		rows, _ := xlsxFile.GetRows(sheetName)
+		rows, err := xlsxFile.GetRows(sheetName)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
 		if len(rows) == 0 {
 			continue
 		}
-		// フィールド内容座標が取得できない場合は処理をスキップ
-		_, rowAxis, err := excelize.SplitCellName(rec.BaseTable.Field.ID)
-		if err != nil {
-			log.Println(rowAxis, err)
-			continue
-		}
-		// table エレメントの作成
+
 		cellValue, _ := xlsxFile.GetCellValue(sheetName, rec.BaseTable.Name)
 		tableElement := &xmlquery.Node{
 			Data: "BaseTable",
@@ -186,198 +212,183 @@ func main() {
 				{Name: xml.Name{Local: "name"}, Value: cellValue},
 			},
 		}
-		// field エレメントの作成
+
 		fieldXML := rec.BaseTable.Field
-		// 各行の末尾にある継続的な空白のセルはスキップされるため、各行の長さが不一致になる可能性がある、シートからセルの値を直接取得する
+		// trailing empty cells are stripped per row, so row lengths may differ — read cell values directly from sheet
 		for rowIndex, row := range rows {
-			if rowIndex >= (rowAxis-1) && len(row) > 1 {
-				// --------------------------------------------------
-				fieldElement := &xmlquery.Node{
-					Data: "Field",
-					Type: xmlquery.ElementNode,
-					Attr: []xmlquery.Attr{
-						{Name: xml.Name{Local: "id"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.ID, strconv.Itoa(rowIndex))},
-						{Name: xml.Name{Local: "name"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Name, fmt.Sprintf("Field#%d", rowIndex))},
-						{Name: xml.Name{Local: "fieldType"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.FieldType, "Normal")},
-						{Name: xml.Name{Local: "dataType"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.DataType, "Text")},
-					},
-				}
-
-				// --------------------------------------------------
-				commentElement := &xmlquery.Node{
-					Data: "Comment",
-					Type: xmlquery.ElementNode,
-				}
-				xmlquery.AddChild(commentElement, &xmlquery.Node{
-					Data: returnCellValue(sheetName, rowIndex, fieldXML.Comment, ""),
-					Type: xmlquery.TextNode,
-				})
-				xmlquery.AddChild(fieldElement, commentElement)
-
-				// --------------------------------------------------
-				autoEnterElement := &xmlquery.Node{
-					Data: "AutoEnter",
-					Type: xmlquery.ElementNode,
-					Attr: []xmlquery.Attr{
-						/* True, False*/
-						{Name: xml.Name{Local: "constant"}, Value: "False"},
-						{Name: xml.Name{Local: "calculation"}, Value: "False"},
-						{Name: xml.Name{Local: "alwaysEvaluate"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.AlwaysEvaluate, "False")},
-						{Name: xml.Name{Local: "overwriteExistingValue"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.OverwriteExistingValue, "True")},
-						{Name: xml.Name{Local: "allowEditing"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.AllowEditing, "False")},
-						{Name: xml.Name{Local: "furigana"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Furigana, "False")},
-						{Name: xml.Name{Local: "lookup"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Lookup, "False")},
-					},
-				}
-
-				var constantDataElement = &xmlquery.Node{
-					Data: "ConstantData",
-					Type: xmlquery.ElementNode,
-				}
-				autoEnterConstant := returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.Constant, "")
-				if autoEnterConstant == "固定値" {
-					autoEnterElement.SetAttr("constant", "True")
-				} else if autoEnterConstant == "作成TS" {
-					autoEnterElement.SetAttr("value", "CreationTimeStamp")
-				} else if autoEnterConstant == "作成者" {
-					autoEnterElement.SetAttr("value", "CreationAccountName")
-				} else if autoEnterConstant == "修正TS" {
-					autoEnterElement.SetAttr("value", "ModificationTimeStamp")
-				} else if autoEnterConstant == "修正者" {
-					autoEnterElement.SetAttr("value", "ModificationAccountName")
-				} else if autoEnterConstant == "計算値" {
-					autoEnterElement.SetAttr("calculation", "True")
-					constantDataElement = &xmlquery.Node{
-						Data: "Calculation",
-						Type: xmlquery.ElementNode,
-						Attr: []xmlquery.Attr{
-							{Name: xml.Name{Local: "table"}, Value: ""},
-						},
-					}
-				}
-				xmlquery.AddChild(constantDataElement, &xmlquery.Node{
-					Data: returnCellValue(sheetName, rowIndex, fieldXML.AutoEnter.ConstantData, ""),
-					Type: xmlquery.TextNode,
-				})
-				xmlquery.AddChild(autoEnterElement, constantDataElement)
-				xmlquery.AddChild(fieldElement, autoEnterElement)
-
-				// --------------------------------------------------
-				validationElement := &xmlquery.Node{
-					Data: "Validation",
-					Type: xmlquery.ElementNode,
-					Attr: []xmlquery.Attr{
-						/* True, False*/
-						{Name: xml.Name{Local: "maxLength"}, Value: "False"},
-						{Name: xml.Name{Local: "message"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Validation.Message, "False")},
-						{Name: xml.Name{Local: "valuelist"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Validation.Valuelist, "False")},
-						{Name: xml.Name{Local: "calculation"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Validation.Calculation, "False")},
-						{Name: xml.Name{Local: "alwaysValidateCalculation"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Validation.AlwaysValidateCalculation, "False")},
-						{Name: xml.Name{Local: "type"}, Value: returnCellValue(sheetName, rowIndex, "", "OnlyDuringDataEntry")},
-					},
-				}
-
-				/* True, False */
-				uniqueElement := &xmlquery.Node{
-					Data: "Unique",
-					Type: xmlquery.ElementNode,
-					Attr: []xmlquery.Attr{
-						{Name: xml.Name{Local: "value"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Validation.Unique.Value, "True")},
-					},
-				}
-				xmlquery.AddChild(validationElement, uniqueElement)
-
-				/* True, False */
-				strictValidationElement := &xmlquery.Node{
-					Data: "StrictValidation",
-					Type: xmlquery.ElementNode,
-					Attr: []xmlquery.Attr{
-						{Name: xml.Name{Local: "value"}, Value: "False"},
-					},
-				}
-
-				strictDataTypeValue := returnCellValue(sheetName, rowIndex, fieldXML.Validation.StrictDataType.Value, "")
-				if strictDataTypeValue != "" {
-					strictValidationElement.SetAttr("value", "True")
-					strictDataTypeElement := &xmlquery.Node{
-						Data: "StrictDataType",
-						Type: xmlquery.ElementNode,
-						Attr: []xmlquery.Attr{
-							{Name: xml.Name{Local: "value"}, Value: strictDataTypeValue},
-						},
-					}
-					xmlquery.AddChild(validationElement, strictDataTypeElement)
-				}
-				xmlquery.AddChild(validationElement, strictValidationElement)
-
-				/* True, False */
-				notEmptyElement := &xmlquery.Node{
-					Data: "NotEmpty",
-					Type: xmlquery.ElementNode,
-					Attr: []xmlquery.Attr{
-						{Name: xml.Name{Local: "value"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Validation.NotEmpty.Value, "True")},
-					},
-				}
-				xmlquery.AddChild(validationElement, notEmptyElement)
-
-				/* 0 - 999 */
-				maxLengthElement := &xmlquery.Node{
-					Data: "MaxDataLength",
-					Type: xmlquery.ElementNode,
-					Attr: []xmlquery.Attr{
-						{Name: xml.Name{Local: "value"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Validation.MaxDataLength.Value, "")},
-					},
-				}
-				if len(returnCellValue(sheetName, rowIndex, fieldXML.Validation.MaxDataLength.Value, "")) > 0 {
-					validationElement.SetAttr("maxLength", "True")
-				}
-				xmlquery.AddChild(validationElement, maxLengthElement)
-				xmlquery.AddChild(fieldElement, validationElement)
-
-				// --------------------------------------------------
-				storageEnterElement := &xmlquery.Node{
-					Data: "Storage",
-					Type: xmlquery.ElementNode,
-					Attr: []xmlquery.Attr{
-						{Name: xml.Name{Local: "autoIndex"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Storage.AutoIndex, "True")},
-						{Name: xml.Name{Local: "index"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Storage.Index, "None")},
-						{Name: xml.Name{Local: "indexLanguage"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Storage.IndexLanguage, "Japanese")},
-						{Name: xml.Name{Local: "global"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Storage.Global, "False")},
-						{Name: xml.Name{Local: "maxRepetition"}, Value: returnCellValue(sheetName, rowIndex, fieldXML.Storage.MaxRepetition, "1")},
-					},
-				}
-				xmlquery.AddChild(fieldElement, storageEnterElement)
-				// --------------------------------------------------
-				xmlquery.AddChild(tableElement, fieldElement)
+			if rowIndex < rowAxis-1 || len(row) <= 1 {
+				continue
 			}
-		}
 
+			fieldType := cell(sheetName, rowIndex, fieldXML.FieldType, "Normal")
+			fieldElement := &xmlquery.Node{
+				Data: "Field",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{
+					{Name: xml.Name{Local: "id"}, Value: cell(sheetName, rowIndex, fieldXML.ID, strconv.Itoa(rowIndex))},
+					{Name: xml.Name{Local: "name"}, Value: cell(sheetName, rowIndex, fieldXML.Name, fmt.Sprintf("Field#%d", rowIndex))},
+					{Name: xml.Name{Local: "fieldType"}, Value: fieldType},
+					{Name: xml.Name{Local: "dataType"}, Value: cell(sheetName, rowIndex, fieldXML.DataType, "Text")},
+				},
+			}
+
+			commentElement := &xmlquery.Node{Data: "Comment", Type: xmlquery.ElementNode}
+			xmlquery.AddChild(commentElement, &xmlquery.Node{
+				Data: cell(sheetName, rowIndex, fieldXML.Comment, ""),
+				Type: xmlquery.TextNode,
+			})
+			xmlquery.AddChild(fieldElement, commentElement)
+
+			if fieldType == "Calculated" {
+				calcElement := &xmlquery.Node{
+					Data: "Calculation",
+					Type: xmlquery.ElementNode,
+					Attr: []xmlquery.Attr{
+						{Name: xml.Name{Local: "table"}, Value: cell(sheetName, rowIndex, fieldXML.Calculation.Table, "")},
+					},
+				}
+				xmlquery.AddChild(calcElement, &xmlquery.Node{
+					Data: cell(sheetName, rowIndex, fieldXML.Calculation.Value, ""),
+					Type: xmlquery.TextNode,
+				})
+				xmlquery.AddChild(fieldElement, calcElement)
+			}
+
+			autoEnterElement := &xmlquery.Node{
+				Data: "AutoEnter",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{
+					{Name: xml.Name{Local: "constant"}, Value: "False"},
+					{Name: xml.Name{Local: "calculation"}, Value: "False"},
+					{Name: xml.Name{Local: "alwaysEvaluate"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.AlwaysEvaluate, "False")},
+					{Name: xml.Name{Local: "overwriteExistingValue"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.OverwriteExistingValue, "True")},
+					{Name: xml.Name{Local: "allowEditing"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.AllowEditing, "False")},
+					{Name: xml.Name{Local: "furigana"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.Furigana, "False")},
+					{Name: xml.Name{Local: "lookup"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.Lookup, "False")},
+				},
+			}
+
+			constantDataElement := &xmlquery.Node{Data: "ConstantData", Type: xmlquery.ElementNode}
+			switch autoEnterConstant := cell(sheetName, rowIndex, fieldXML.AutoEnter.Constant, ""); autoEnterConstant {
+			case "固定値":
+				autoEnterElement.SetAttr("constant", "True")
+			case "作成TS":
+				autoEnterElement.SetAttr("value", "CreationTimeStamp")
+			case "作成者":
+				autoEnterElement.SetAttr("value", "CreationAccountName")
+			case "修正TS":
+				autoEnterElement.SetAttr("value", "ModificationTimeStamp")
+			case "修正者":
+				autoEnterElement.SetAttr("value", "ModificationAccountName")
+			case "計算値":
+				autoEnterElement.SetAttr("calculation", "True")
+				constantDataElement = &xmlquery.Node{
+					Data: "Calculation",
+					Type: xmlquery.ElementNode,
+					Attr: []xmlquery.Attr{
+						{Name: xml.Name{Local: "table"}, Value: ""},
+					},
+				}
+			}
+			xmlquery.AddChild(constantDataElement, &xmlquery.Node{
+				Data: cell(sheetName, rowIndex, fieldXML.AutoEnter.ConstantData, ""),
+				Type: xmlquery.TextNode,
+			})
+			xmlquery.AddChild(autoEnterElement, constantDataElement)
+			xmlquery.AddChild(fieldElement, autoEnterElement)
+
+			validationElement := &xmlquery.Node{
+				Data: "Validation",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{
+					{Name: xml.Name{Local: "maxLength"}, Value: "False"},
+					{Name: xml.Name{Local: "message"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Message, "False")},
+					{Name: xml.Name{Local: "valuelist"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Valuelist, "False")},
+					{Name: xml.Name{Local: "calculation"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Calculation, "False")},
+					{Name: xml.Name{Local: "alwaysValidateCalculation"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.AlwaysValidateCalculation, "False")},
+					{Name: xml.Name{Local: "type"}, Value: cell(sheetName, rowIndex, "", "OnlyDuringDataEntry")},
+				},
+			}
+
+			xmlquery.AddChild(validationElement, &xmlquery.Node{
+				Data: "Unique",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{
+					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Unique.Value, "True")},
+				},
+			})
+
+			strictValidationElement := &xmlquery.Node{
+				Data: "StrictValidation",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: "False"}},
+			}
+			if strictDataTypeValue := cell(sheetName, rowIndex, fieldXML.Validation.StrictDataType.Value, ""); strictDataTypeValue != "" {
+				strictValidationElement.SetAttr("value", "True")
+				xmlquery.AddChild(validationElement, &xmlquery.Node{
+					Data: "StrictDataType",
+					Type: xmlquery.ElementNode,
+					Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: strictDataTypeValue}},
+				})
+			}
+			xmlquery.AddChild(validationElement, strictValidationElement)
+
+			xmlquery.AddChild(validationElement, &xmlquery.Node{
+				Data: "NotEmpty",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{
+					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.NotEmpty.Value, "True")},
+				},
+			})
+
+			maxLengthValue := cell(sheetName, rowIndex, fieldXML.Validation.MaxDataLength.Value, "")
+			if maxLengthValue != "" {
+				validationElement.SetAttr("maxLength", "True")
+			}
+			xmlquery.AddChild(validationElement, &xmlquery.Node{
+				Data: "MaxDataLength",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: maxLengthValue}},
+			})
+			xmlquery.AddChild(fieldElement, validationElement)
+
+			xmlquery.AddChild(fieldElement, &xmlquery.Node{
+				Data: "Storage",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{
+					{Name: xml.Name{Local: "autoIndex"}, Value: cell(sheetName, rowIndex, fieldXML.Storage.AutoIndex, "True")},
+					{Name: xml.Name{Local: "index"}, Value: cell(sheetName, rowIndex, fieldXML.Storage.Index, "None")},
+					{Name: xml.Name{Local: "indexLanguage"}, Value: cell(sheetName, rowIndex, fieldXML.Storage.IndexLanguage, "Japanese")},
+					{Name: xml.Name{Local: "global"}, Value: cell(sheetName, rowIndex, fieldXML.Storage.Global, "False")},
+					{Name: xml.Name{Local: "maxRepetition"}, Value: cell(sheetName, rowIndex, fieldXML.Storage.MaxRepetition, "1")},
+				},
+			})
+			xmlquery.AddChild(tableElement, fieldElement)
+		}
 		xmlquery.AddChild(rootElement, tableElement)
 	}
 
-	// log.Println(rootElement.OutputXML(true))
+	xmlStr := rootElement.OutputXML(true)
+
+	if *debug {
+		if err = os.WriteFile(filepath.Join(dir, "output.xml"), []byte(prettyXML(xmlStr)), 0644); err != nil {
+			log.Println(err)
+		}
+	}
 
 	switch runtime.GOOS {
 	case "darwin":
-		hexData := hex.EncodeToString([]byte(rootElement.OutputXML(true)))
-		hexData = "XMTB" + hexData
-		hexData = "«data " + hexData + "»"
-		// https: //stackoverflow.com/questions/45248144
-		err := exec.Command("/usr/bin/osascript", "-e", fmt.Sprintf(`set the clipboard to %s`, hexData)).Run()
-		if err != nil {
+		// https://stackoverflow.com/questions/45248144
+		if err = exec.Command("/usr/bin/osascript", "-e",
+			fmt.Sprintf(`set the clipboard to «data XMTB%s»`, hex.EncodeToString([]byte(xmlStr))),
+		).Run(); err != nil {
 			log.Println(err)
 		}
 	case "windows":
-		err = clipboard.WriteAll(rootElement.OutputXML(true))
-		if err != nil {
+		if err = clipboard.WriteAll(xmlStr); err != nil {
 			log.Println(err)
 		}
 	default:
-		log.Println("ohter")
+		log.Println("unsupported OS")
 	}
-
 }
-
-// OOS=darwin GOARCH=amd64 go build -o ../../build/generateTables
-// GOOS=darwin GOARCH=arm64 go build -o ../../build/generateTables
-// GOOS=windows GOARCH=amd64 go build -o ../../build/generateTables.ext
