@@ -1,0 +1,66 @@
+<fmxmlsnippet type="FMObjectList">
+  <!-- フィールドID: 13 - s_fuga (合計) -->
+  <Field id="13" dataType="Number" fieldType="Summary" name="s_fuga">
+    <SummaryInfo restartForEachSortedGroup="False" summarizeRepetition="Together" operation="Total">
+      <SummaryField>
+        <Field id="1" name="z_作成TS"></Field>
+      </SummaryField>
+    </SummaryInfo>
+    <Comment></Comment>
+    <AutoEnter allowEditing="True" constant="False" furigana="False" lookup="False" calculation="False">
+      <ConstantData></ConstantData>
+    </AutoEnter>
+  </Field>
+
+  <!-- フィールドID: 14 - s_fuga コピー (平均) -->
+  <Field id="14" dataType="TimeStamp" fieldType="Summary" name="s_fuga コピー">
+    <SummaryInfo restartForEachSortedGroup="False" summarizeRepetition="Together" operation="Average">
+      <SummaryField>
+        <Field id="1" name="z_作成TS"></Field>
+      </SummaryField>
+    </SummaryInfo>
+    <Comment></Comment>
+    <AutoEnter allowEditing="True" constant="False" furigana="False" lookup="False" calculation="False">
+      <ConstantData></ConstantData>
+    </AutoEnter>
+  </Field>
+
+  <!-- フィールドID: 15 - s_fuga コピー2 (個数) -->
+  <Field id="15" dataType="Number" fieldType="Summary" name="s_fuga コピー2">
+    <SummaryInfo restartForEachSortedGroup="False" summarizeRepetition="Together" operation="Count">
+      <SummaryField>
+        <Field id="1" name="z_作成TS"></Field>
+      </SummaryField>
+    </SummaryInfo>
+    <Comment></Comment>
+    <AutoEnter allowEditing="True" constant="False" furigana="False" lookup="False" calculation="False">
+      <ConstantData></ConstantData>
+    </AutoEnter>
+  </Field>
+
+  <!-- フィールドID: 17 - s_fuga コピー4 (一覧) -->
+  <Field id="17" dataType="Text" fieldType="Summary" name="s_fuga コピー4">
+    <SummaryInfo restartForEachSortedGroup="False" summarizeRepetition="Together" operation="List">
+      <SummaryField>
+        <Field id="1" name="z_作成TS"></Field>
+      </SummaryField>
+    </SummaryInfo>
+    <Comment></Comment>
+    <AutoEnter allowEditing="True" constant="False" furigana="False" lookup="False" calculation="False">
+      <ConstantData></ConstantData>
+    </AutoEnter>
+  </Field>
+
+  <!-- フィールドID: 18 - s_fuga コピー3 (合計・個別) -->
+  <Field id="18" dataType="Number" fieldType="Summary" name="s_fuga コピー3">
+    <SummaryInfo restartForEachSortedGroup="False" summarizeRepetition="Individually" operation="Total">
+      <SummaryField>
+        <Field id="1" name="z_作成TS"></Field>
+      </SummaryField>
+    </SummaryInfo>
+    <Comment></Comment>
+    <AutoEnter allowEditing="True" constant="False" furigana="False" lookup="False" calculation="False">
+      <ConstantData></ConstantData>
+    </AutoEnter>
+  </Field>
+</fmxmlsnippet>

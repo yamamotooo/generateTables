@@ -221,6 +221,10 @@ func main() {
 			}
 
 			fieldType := cell(sheetName, rowIndex, fieldXML.FieldType, "Normal")
+			dataType := cell(sheetName, rowIndex, fieldXML.DataType, "Text")
+			if fieldType == "Summary" {
+				dataType = "Number"
+			}
 			fieldElement := &xmlquery.Node{
 				Data: "Field",
 				Type: xmlquery.ElementNode,
@@ -228,8 +232,43 @@ func main() {
 					{Name: xml.Name{Local: "id"}, Value: cell(sheetName, rowIndex, fieldXML.ID, strconv.Itoa(rowIndex))},
 					{Name: xml.Name{Local: "name"}, Value: cell(sheetName, rowIndex, fieldXML.Name, fmt.Sprintf("Field#%d", rowIndex))},
 					{Name: xml.Name{Local: "fieldType"}, Value: fieldType},
-					{Name: xml.Name{Local: "dataType"}, Value: cell(sheetName, rowIndex, fieldXML.DataType, "Text")},
+					{Name: xml.Name{Local: "dataType"}, Value: dataType},
 				},
+			}
+
+			if fieldType == "Summary" {
+				// K列: "Together.Total" など summarizeRepetition.operation 形式
+				parts := strings.SplitN(cell(sheetName, rowIndex, fieldXML.DataType, ""), ".", 2)
+				summarizeRepetition, operation := "Together", ""
+				if len(parts) == 2 {
+					summarizeRepetition, operation = parts[0], parts[1]
+				}
+				// Q列: "id.name" 形式の SummaryField 参照
+				refParts := strings.SplitN(cell(sheetName, rowIndex, fieldXML.Calculation.Value, ""), ".", 2)
+				fieldID, fieldName := "", ""
+				if len(refParts) == 2 {
+					fieldID, fieldName = refParts[0], refParts[1]
+				}
+				summaryInfoElement := &xmlquery.Node{
+					Data: "SummaryInfo",
+					Type: xmlquery.ElementNode,
+					Attr: []xmlquery.Attr{
+						{Name: xml.Name{Local: "restartForEachSortedGroup"}, Value: "False"},
+						{Name: xml.Name{Local: "summarizeRepetition"}, Value: summarizeRepetition},
+						{Name: xml.Name{Local: "operation"}, Value: operation},
+					},
+				}
+				summaryFieldElement := &xmlquery.Node{Data: "SummaryField", Type: xmlquery.ElementNode}
+				xmlquery.AddChild(summaryFieldElement, &xmlquery.Node{
+					Data: "Field",
+					Type: xmlquery.ElementNode,
+					Attr: []xmlquery.Attr{
+						{Name: xml.Name{Local: "id"}, Value: fieldID},
+						{Name: xml.Name{Local: "name"}, Value: fieldName},
+					},
+				})
+				xmlquery.AddChild(summaryInfoElement, summaryFieldElement)
+				xmlquery.AddChild(fieldElement, summaryInfoElement)
 			}
 
 			commentElement := &xmlquery.Node{Data: "Comment", Type: xmlquery.ElementNode}
