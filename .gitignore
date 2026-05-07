@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build output
+build/generateTables
+build/generateTables.exe
+build/debug.log
+build/*.app/
+build/*.app
+
+# Go test binaries
+*.test
+*.out
+
+# Go workspace file (optional - remove if sharing go.work with team)
+# go.work
+# go.work.sum
+
+# Dependency directories
+vendor/
+
+# VS Code
+.vscode/
