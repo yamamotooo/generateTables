@@ -426,9 +426,10 @@ func main() {
 	switch runtime.GOOS {
 	case "darwin":
 		// https://stackoverflow.com/questions/45248144
-		if err = exec.Command("/usr/bin/osascript", "-e",
-			fmt.Sprintf(`set the clipboard to «data XMTB%s»`, hex.EncodeToString([]byte(xmlStr))),
-		).Run(); err != nil {
+		// Pass script via stdin to avoid ARG_MAX limit with large XML payloads.
+		darwinCmd := exec.Command("/usr/bin/osascript")
+		darwinCmd.Stdin = strings.NewReader(fmt.Sprintf(`set the clipboard to «data XMTB%s»`, hex.EncodeToString([]byte(xmlStr))))
+		if err = darwinCmd.Run(); err != nil {
 			log.Println(err)
 		}
 	case "windows":
