@@ -300,8 +300,8 @@ func main() {
 					{Name: xml.Name{Local: "constant"}, Value: "False"},
 					{Name: xml.Name{Local: "calculation"}, Value: "False"},
 					{Name: xml.Name{Local: "alwaysEvaluate"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.AlwaysEvaluate, "False")},
-					{Name: xml.Name{Local: "overwriteExistingValue"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.OverwriteExistingValue, "True")},
-					{Name: xml.Name{Local: "allowEditing"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.AllowEditing, "False")},
+					{Name: xml.Name{Local: "overwriteExistingValue"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.OverwriteExistingValue, "False")},
+					{Name: xml.Name{Local: "allowEditing"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.AllowEditing, "True")},
 					{Name: xml.Name{Local: "furigana"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.Furigana, "False")},
 					{Name: xml.Name{Local: "lookup"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.Lookup, "False")},
 				},
@@ -353,7 +353,7 @@ func main() {
 				Data: "Unique",
 				Type: xmlquery.ElementNode,
 				Attr: []xmlquery.Attr{
-					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Unique.Value, "True")},
+					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Unique.Value, "False")},
 				},
 			})
 
@@ -376,7 +376,7 @@ func main() {
 				Data: "NotEmpty",
 				Type: xmlquery.ElementNode,
 				Attr: []xmlquery.Attr{
-					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.NotEmpty.Value, "True")},
+					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.NotEmpty.Value, "False")},
 				},
 			})
 
@@ -388,6 +388,14 @@ func main() {
 				Data: "MaxDataLength",
 				Type: xmlquery.ElementNode,
 				Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: maxLengthValue}},
+			})
+
+			xmlquery.AddChild(validationElement, &xmlquery.Node{
+				Data: "Existing",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{
+					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Existing.Value, "False")},
+				},
 			})
 			xmlquery.AddChild(fieldElement, validationElement)
 
