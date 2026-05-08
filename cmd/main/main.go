@@ -190,8 +190,8 @@ func main() {
 		},
 	}
 
-	for index, sheetName := range xlsxFile.GetSheetMap() {
-		fmt.Println(index, sheetName)
+	for index, sheetName := range xlsxFile.GetSheetList() {
+		fmt.Println(index+1, sheetName)
 		if sheetName == "#SAMPLE" {
 			continue
 		}
