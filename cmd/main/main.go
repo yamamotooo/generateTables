@@ -58,8 +58,11 @@ type fmxmlSnippet struct {
 				Constant               string `xml:"constant,attr"`
 				Furigana               string `xml:"furigana,attr"`
 				Lookup                 string `xml:"lookup,attr"`
-				Calculation            string `xml:"calculation,attr"`
 				ConstantData           string `xml:"ConstantData"`
+				AutoCalcElement        struct {
+					Table string `xml:"table,attr"`
+					Value string `xml:",chardata"`
+				} `xml:"Calculation"`
 			} `xml:"AutoEnter"`
 			Validation struct {
 				Message                   string `xml:"message,attr"`
@@ -308,6 +311,7 @@ func main() {
 			}
 
 			constantDataElement := &xmlquery.Node{Data: "ConstantData", Type: xmlquery.ElementNode}
+			textCellRef := fieldXML.AutoEnter.ConstantData
 			switch autoEnterConstant := cell(sheetName, rowIndex, fieldXML.AutoEnter.Constant, ""); autoEnterConstant {
 			case "固定値":
 				autoEnterElement.SetAttr("constant", "True")
@@ -321,16 +325,17 @@ func main() {
 				autoEnterElement.SetAttr("value", "ModificationAccountName")
 			case "計算値":
 				autoEnterElement.SetAttr("calculation", "True")
+				textCellRef = fieldXML.AutoEnter.AutoCalcElement.Value
 				constantDataElement = &xmlquery.Node{
 					Data: "Calculation",
 					Type: xmlquery.ElementNode,
 					Attr: []xmlquery.Attr{
-						{Name: xml.Name{Local: "table"}, Value: ""},
+						{Name: xml.Name{Local: "table"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.AutoCalcElement.Table, "")},
 					},
 				}
 			}
 			xmlquery.AddChild(constantDataElement, &xmlquery.Node{
-				Data: cell(sheetName, rowIndex, fieldXML.AutoEnter.ConstantData, ""),
+				Data: cell(sheetName, rowIndex, textCellRef, ""),
 				Type: xmlquery.TextNode,
 			})
 			xmlquery.AddChild(autoEnterElement, constantDataElement)
