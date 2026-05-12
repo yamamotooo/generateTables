@@ -8,13 +8,15 @@
 				<NotEmpty value="Z10"></NotEmpty>
 				<MaxDataLength value="AC10"></MaxDataLength>
 				<Existing value="AF10"></Existing>
+				<StrictValidation value="AI10"/>
 			</Validation>
-			<AutoEnter constant="AI10" calculation="AI10" overwriteExistingValue="AR10" allowEditing="AU10" alwaysEvaluate="" furigana="" lookup="">
-				<ConstantData>AO10</ConstantData>
-				<Calculation table="AL10"><![CDATA[AO10]]></Calculation>
+			<AutoEnter constant="AL10" calculation="AL10" overwriteExistingValue="AU10" allowEditing="AX10" alwaysEvaluate="" furigana="" lookup="">
+				<ConstantData>AR10</ConstantData>
+				<Calculation table="AO10"><![CDATA[AR10]]></Calculation>
+				<Serial increment="1" nextValue="AR10" generate="OnCreation"/>
 			</AutoEnter>
-			<Storage autoIndex="" index="" indexLanguage="" global="AX10" maxRepetition="BA10"></Storage>
-			<Comment>BD10</Comment>
+			<Storage autoIndex="" index="" indexLanguage="" global="BA10" maxRepetition="BD10"></Storage>
+			<Comment>BG10</Comment>
 		</Field>
 	</BaseTable>
 </fmxmlsnippet>

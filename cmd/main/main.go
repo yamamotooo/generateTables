@@ -63,6 +63,11 @@ type fmxmlSnippet struct {
 					Table string `xml:"table,attr"`
 					Value string `xml:",chardata"`
 				} `xml:"Calculation"`
+				Serial struct {
+					Increment string `xml:"increment,attr"`
+					NextValue string `xml:"nextValue,attr"`
+					Generate  string `xml:"generate,attr"`
+				} `xml:"Serial"`
 			} `xml:"AutoEnter"`
 			Validation struct {
 				Message                   string `xml:"message,attr"`
@@ -312,6 +317,7 @@ func main() {
 
 			constantDataElement := &xmlquery.Node{Data: "ConstantData", Type: xmlquery.ElementNode}
 			textCellRef := fieldXML.AutoEnter.ConstantData
+			isSerial := false
 			switch autoEnterConstant := cell(sheetName, rowIndex, fieldXML.AutoEnter.Constant, ""); autoEnterConstant {
 			case "固定値":
 				autoEnterElement.SetAttr("constant", "True")
@@ -333,19 +339,50 @@ func main() {
 						{Name: xml.Name{Local: "table"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.AutoCalcElement.Table, "")},
 					},
 				}
+			case "シリアル番号":
+				isSerial = true
+				xmlquery.AddChild(autoEnterElement, &xmlquery.Node{
+					Data: "Serial",
+					Type: xmlquery.ElementNode,
+					Attr: []xmlquery.Attr{
+						{Name: xml.Name{Local: "increment"}, Value: fieldXML.AutoEnter.Serial.Increment},
+						{Name: xml.Name{Local: "nextValue"}, Value: cell(sheetName, rowIndex, fieldXML.AutoEnter.Serial.NextValue, "")},
+						{Name: xml.Name{Local: "generate"}, Value: fieldXML.AutoEnter.Serial.Generate},
+					},
+				})
 			}
-			xmlquery.AddChild(constantDataElement, &xmlquery.Node{
-				Data: cell(sheetName, rowIndex, textCellRef, ""),
-				Type: xmlquery.TextNode,
-			})
-			xmlquery.AddChild(autoEnterElement, constantDataElement)
+			if !isSerial {
+				xmlquery.AddChild(constantDataElement, &xmlquery.Node{
+					Data: cell(sheetName, rowIndex, textCellRef, ""),
+					Type: xmlquery.TextNode,
+				})
+				xmlquery.AddChild(autoEnterElement, constantDataElement)
+			}
 			xmlquery.AddChild(fieldElement, autoEnterElement)
+
+			// 値を先にすべて読み込む
+			strictDataTypeValue := cell(sheetName, rowIndex, fieldXML.Validation.StrictDataType.Value, "")
+			uniqueValue := cell(sheetName, rowIndex, fieldXML.Validation.Unique.Value, "False")
+			notEmptyValue := cell(sheetName, rowIndex, fieldXML.Validation.NotEmpty.Value, "False")
+			maxLengthValue := cell(sheetName, rowIndex, fieldXML.Validation.MaxDataLength.Value, "")
+			existingValue := cell(sheetName, rowIndex, fieldXML.Validation.Existing.Value, "False")
+			strictValidationValue := cell(sheetName, rowIndex, fieldXML.Validation.StrictValidation.Value, "")
+
+			// StrictDataType が設定されている場合、StrictValidation のデフォルトは True
+			if strictDataTypeValue != "" && strictValidationValue == "" {
+				strictValidationValue = "True"
+			}
+			if strings.EqualFold(strictValidationValue, "True") {
+				strictValidationValue = "True"
+			} else {
+				strictValidationValue = "False"
+			}
 
 			validationElement := &xmlquery.Node{
 				Data: "Validation",
 				Type: xmlquery.ElementNode,
 				Attr: []xmlquery.Attr{
-					{Name: xml.Name{Local: "maxLength"}, Value: "False"},
+					{Name: xml.Name{Local: "maxLength"}, Value: map[bool]string{true: "True", false: "False"}[maxLengthValue != ""]},
 					{Name: xml.Name{Local: "message"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Message, "False")},
 					{Name: xml.Name{Local: "valuelist"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Valuelist, "False")},
 					{Name: xml.Name{Local: "calculation"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Calculation, "False")},
@@ -354,53 +391,38 @@ func main() {
 				},
 			}
 
-			xmlquery.AddChild(validationElement, &xmlquery.Node{
-				Data: "Unique",
-				Type: xmlquery.ElementNode,
-				Attr: []xmlquery.Attr{
-					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Unique.Value, "False")},
-				},
-			})
-
-			strictValidationElement := &xmlquery.Node{
-				Data: "StrictValidation",
-				Type: xmlquery.ElementNode,
-				Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: "False"}},
-			}
-			if strictDataTypeValue := cell(sheetName, rowIndex, fieldXML.Validation.StrictDataType.Value, ""); strictDataTypeValue != "" {
-				strictValidationElement.SetAttr("value", "True")
+			// 列順に追加: タイプ → ユニーク → 空欄不可 → 文字制限 → 既存値 → 上書き
+			if strictDataTypeValue != "" {
 				xmlquery.AddChild(validationElement, &xmlquery.Node{
 					Data: "StrictDataType",
 					Type: xmlquery.ElementNode,
 					Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: strictDataTypeValue}},
 				})
 			}
-			xmlquery.AddChild(validationElement, strictValidationElement)
-
+			xmlquery.AddChild(validationElement, &xmlquery.Node{
+				Data: "Unique",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: uniqueValue}},
+			})
 			xmlquery.AddChild(validationElement, &xmlquery.Node{
 				Data: "NotEmpty",
 				Type: xmlquery.ElementNode,
-				Attr: []xmlquery.Attr{
-					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.NotEmpty.Value, "False")},
-				},
+				Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: notEmptyValue}},
 			})
-
-			maxLengthValue := cell(sheetName, rowIndex, fieldXML.Validation.MaxDataLength.Value, "")
-			if maxLengthValue != "" {
-				validationElement.SetAttr("maxLength", "True")
-			}
 			xmlquery.AddChild(validationElement, &xmlquery.Node{
 				Data: "MaxDataLength",
 				Type: xmlquery.ElementNode,
 				Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: maxLengthValue}},
 			})
-
 			xmlquery.AddChild(validationElement, &xmlquery.Node{
 				Data: "Existing",
 				Type: xmlquery.ElementNode,
-				Attr: []xmlquery.Attr{
-					{Name: xml.Name{Local: "value"}, Value: cell(sheetName, rowIndex, fieldXML.Validation.Existing.Value, "False")},
-				},
+				Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: existingValue}},
+			})
+			xmlquery.AddChild(validationElement, &xmlquery.Node{
+				Data: "StrictValidation",
+				Type: xmlquery.ElementNode,
+				Attr: []xmlquery.Attr{{Name: xml.Name{Local: "value"}, Value: strictValidationValue}},
 			})
 			xmlquery.AddChild(fieldElement, validationElement)
 
