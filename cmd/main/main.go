@@ -203,6 +203,9 @@ func main() {
 		if sheetName == "#SAMPLE" {
 			continue
 		}
+		if strings.Contains(sheetName, "#") {
+			continue
+		}
 		rows, err := xlsxFile.GetRows(sheetName)
 		if err != nil {
 			log.Println(err)
